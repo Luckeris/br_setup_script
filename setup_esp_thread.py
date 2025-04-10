@@ -160,33 +160,52 @@ class ESPThreadSetup:
         
         os.chdir(br_example_dir)
         
-        # Add clean step first
+        # Clean build directory
         print("Cleaning previous build...")
         clean_cmd = ["idf.py", "fullclean"]
-        try:
-            subprocess.run(clean_cmd, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Warning: Clean failed: {e}")
+        subprocess.run(clean_cmd, check=False)  # Don't fail if clean fails
         
-        # Then build and flash
-        print("Building and flashing Border Router firmware (this may take several minutes)...")
-        flash_br_cmd = [
+        # First try building without flashing
+        print("Attempting build first...")
+        build_cmd = ["idf.py", "build"]
+        try:
+            subprocess.run(build_cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"\nERROR: Build failed. Trying these troubleshooting steps:")
+            print("1. Checking ESP-IDF version compatibility...")
+            
+            # Check ESP-IDF version
+            idf_version_cmd = ["git", "-C", self.esp_idf_path, "describe", "--tags"]
+            try:
+                result = subprocess.run(idf_version_cmd, capture_output=True, text=True)
+                print(f"Current ESP-IDF version: {result.stdout.strip()}")
+            except:
+                print("Could not determine ESP-IDF version")
+            
+            print("\n2. Recommended solutions:")
+            print("a. Update ESP-IDF:")
+            print(f"   cd {self.esp_idf_path} && git pull && git submodule update --init --recursive")
+            print("b. Check build system resources:")
+            print("   export NINJAFLAGS=\"-j 2\"  # Limit parallel jobs")
+            print("c. Verify all requirements:")
+            print(f"   {self.esp_idf_path}/install.sh")
+            print("d. Check for file corruption:")
+            print(f"   cd {self.esp_thread_br_path} && git checkout -- examples/basic_thread_border_router")
+            
+            return False
+        
+        # If build succeeds, proceed with flashing
+        print("\nBuild successful. Proceeding with flashing...")
+        flash_cmd = [
             "idf.py", 
             "-p", self.border_router_port, 
             "flash"
         ]
         
         try:
-            subprocess.run(flash_br_cmd, check=True)
+            subprocess.run(flash_cmd, check=True)
         except subprocess.CalledProcessError as e:
-            print(f"ERROR: Failed to flash Border Router firmware: {e}")
-            self._show_build_logs(br_example_dir + "/build")
-            
-            # Additional troubleshooting suggestions
-            print("\nTroubleshooting suggestions:")
-            print("1. Try running 'idf.py fullclean' then 'idf.py build' manually")
-            print("2. Check if ESP-IDF is up to date")
-            print("3. Verify all requirements are installed (run 'install.sh' in ESP-IDF)")
+            print(f"ERROR: Flashing failed: {e}")
             return False
             
         print("✓ Border Router firmware flashed successfully")
@@ -433,7 +452,7 @@ class ESPThreadSetup:
         return True
 
     def execute(self):
-        """Main execution method (renamed from 'run')"""
+        """Main execution method"""
         print("=== ESP Thread Border Router Setup Script ===")
         print("This script will guide you through setting up your OpenThread Border Router system.")
         print("Following the official Espressif tutorial: https://docs.espressif.com/projects/esp-thread-br/en/latest/dev-guide/build_and_run.html")
@@ -458,7 +477,7 @@ if __name__ == "__main__":
     setup = ESPThreadSetup()
     
     try:
-        setup.execute()  # Changed from setup.run()
+        setup.execute()
     except KeyboardInterrupt:
         print("\nSetup interrupted by user. Exiting...")
         sys.exit(1)
