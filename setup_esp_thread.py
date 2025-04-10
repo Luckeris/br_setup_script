@@ -187,122 +187,65 @@ class ESPThreadSetup:
             print(f"Couldn't read log files: {e}")
 
     def setup_border_router(self):
-        """Flash the Thread Border Router firmware which will automatically handle RCP flashing"""
-        print("\n=== Setting up ESP Thread Border Router/Zigbee Gateway V1.2 ===")
-        input("Connect your ESP Thread Border Router/Zigbee Gateway V1.2 device and press Enter to continue...")
+    """Flash the Thread Border Router firmware with RCP auto-update disabled"""
+    print("\n=== Setting up ESP Thread Border Router ===")
+    input("Connect your ESP Thread Border Router device and press Enter to continue...")
+    
+    self.border_router_port = self._find_device_port("ESP Thread Border Router")
+    if not self.border_router_port:
+        print("ERROR: ESP Thread Border Router device not found")
+        return False
         
-        self.border_router_port = self._find_device_port("ESP Thread Border Router")
-        if not self.border_router_port:
-            print("ERROR: ESP Thread Border Router device not found")
-            return False
-            
-        print(f"ESP Thread Border Router found at port: {self.border_router_port}")
+    print(f"ESP Thread Border Router found at port: {self.border_router_port}")
+    
+    # Change to the Border Router example directory
+    br_example_dir = os.path.join(self.esp_thread_br_path, "examples/basic_thread_border_router")
+    if not os.path.exists(br_example_dir):
+        print(f"ERROR: Border Router example directory not found at {br_example_dir}")
+        return False
+    
+    os.chdir(br_example_dir)
+    
+    # Disable RCP auto-update by modifying the sdkconfig file
+    print("Disabling RCP auto-update...")
+    try:
+        # Look for existing sdkconfig file
+        sdkconfig_path = os.path.join(br_example_dir, "sdkconfig.defaults")
+        if os.path.exists(sdkconfig_path):
+            # Add or update the RCP auto-update setting
+            with open(sdkconfig_path, "a") as f:
+                f.write("\n# Disable RCP auto-update to prevent update loops\n")
+                f.write("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP=n\n")
+                f.write("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE=0\n")
+        else:
+            print("Warning: sdkconfig.defaults not found, unable to disable RCP auto-update")
+    except Exception as e:
+        print(f"Error modifying sdkconfig: {e}")
+    
+    # Clean build directory and rebuild
+    print("Cleaning previous build...")
+    clean_cmd = ["idf.py", "fullclean"]
+    subprocess.run(clean_cmd, check=False)
+    
+    print("Building Border Router firmware...")
+    build_cmd = ["idf.py", "build"]
+    try:
+        subprocess.run(build_cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: Build failed: {e}")
+        return False
+    
+    # Flash the Border Router
+    print("Flashing Border Router firmware...")
+    flash_cmd = ["idf.py", "-p", self.border_router_port, "flash"]
+    try:
+        subprocess.run(flash_cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"ERROR: Flashing failed: {e}")
+        return False
         
-        # Change to the Border Router example directory
-        br_example_dir = os.path.join(self.esp_thread_br_path, "examples/basic_thread_border_router")
-        if not os.path.exists(br_example_dir):
-            print(f"ERROR: Border Router example directory not found at {br_example_dir}")
-            return False
-        
-        os.chdir(br_example_dir)
-        
-        # Clean build directory
-        print("Cleaning previous build...")
-        clean_cmd = ["idf.py", "fullclean"]
-        subprocess.run(clean_cmd, check=False)  # Don't fail if clean fails
-        
-        # First try building without flashing
-        print("Attempting build first...")
-        build_cmd = ["idf.py", "build"]
-        try:
-            subprocess.run(build_cmd, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"\nERROR: Build failed. Trying these troubleshooting steps:")
-            print("1. Checking ESP-IDF version compatibility...")
-            
-            # Check ESP-IDF version
-            idf_version_cmd = ["git", "-C", self.esp_idf_path, "describe", "--tags"]
-            try:
-                result = subprocess.run(idf_version_cmd, capture_output=True, text=True)
-                print(f"Current ESP-IDF version: {result.stdout.strip()}")
-            except:
-                print("Could not determine ESP-IDF version")
-            
-            print("\n2. Recommended solutions:")
-            print("a. Update ESP-IDF:")
-            print(f"   cd {self.esp_idf_path} && git pull && git submodule update --init --recursive")
-            print("b. Check build system resources:")
-            print("   export NINJAFLAGS=\"-j 2\"  # Limit parallel jobs")
-            print("c. Verify all requirements:")
-            print(f"   {self.esp_idf_path}/install.sh")
-            print("d. Check for file corruption:")
-            print(f"   cd {self.esp_thread_br_path} && git checkout -- examples/basic_thread_border_router")
-            
-            # Try to determine the specific error from the build logs
-            build_dir = os.path.join(br_example_dir, "build")
-            self._show_build_logs(build_dir)
-            
-            return False
-        
-        # If build succeeds, proceed with flashing
-        print("\nBuild successful. Proceeding with flashing...")
-        flash_cmd = [
-            "idf.py", 
-            "-p", self.border_router_port, 
-            "flash"
-        ]
-        
-        try:
-            subprocess.run(flash_cmd, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"ERROR: Flashing failed: {e}")
-            return False
-            
-        print("✓ Border Router firmware flashed successfully")
-        return True
-
-    def build_and_flash_cli(self):
-        """Flash the CLI using ESP32C6 example image from ESP-IDF"""
-        print("\n=== Setting up CLI (ESP32C6) ===")
-        input("Connect your ESP32C6 (CLI) device and press Enter to continue...")
-        
-        # Get the port using improved detection
-        self.cli_port = self._find_device_port("ESP32C6 CLI")
-        if not self.cli_port:
-            print("ERROR: ESP32C6 device not found")
-            return False
-            
-        print(f"ESP32C6 device found at port: {self.cli_port}")
-        
-        # Check if the OT CLI example directory exists in ESP-IDF
-        cli_example_dir = os.path.join(self.esp_idf_path, "examples/openthread/ot_cli")
-        if not os.path.exists(cli_example_dir):
-            print(f"ERROR: CLI example directory not found at {cli_example_dir}")
-            print("Please make sure the ESP-IDF repository is complete with examples")
-            return False
-        
-        # Change to the CLI example directory
-        os.chdir(cli_example_dir)
-        
-        # Flash the CLI example
-        print("Flashing OpenThread CLI example for ESP32C6...")
-        flash_cmd = [
-        "idf.py", 
-        "-p", self.cli_port,
-        "set-target", "esp32c6", 
-        "flash"
-        ]
-        
-        print("Flashing CLI firmware (this may take several minutes)...")
-        try:
-            subprocess.run(flash_cmd, check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"ERROR: Failed to flash OpenThread CLI example: {e}")
-            self._show_build_logs(cli_example_dir + "/build")
-            return False
-            
-        print("✓ OpenThread CLI (ESP32C6) flashed successfully")
-        return True
+    print("✓ Border Router firmware flashed successfully")
+    return True
 
     def create_dataset(self):
         """Create a Thread network dataset"""
