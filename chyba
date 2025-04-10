@@ -1,0 +1,5 @@
+[14/1327] Building C object esp-idf/mb...ry/CMakeFiles/mbedcrypto.dir/aes.c.obj
+ninja: build stopped: subcommand failed.
+ninja failed with exit code 1, output of the command is in the /home/jakub/esp/esp-thread-br/examples/basic_thread_border_router/build/log/idf_py_stderr_output_36421 and /home/jakub/esp/esp-thread-br/examples/basic_thread_border_router/build/log/idf_py_stdout_output_36421
+ERROR: Failed to flash Border Router firmware: Command '['idf.py', '-p', '/dev/ttyACM0', 'flash']' returned non-zero exit status 2.
+jakub@jakub-asus-vivobook:~/Downloads$ 
