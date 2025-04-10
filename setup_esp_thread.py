@@ -10,6 +10,7 @@ import json
 import urllib.request
 import zipfile
 import tempfile
+import serial.tools.list_ports
 
 class ESPThreadSetup:
     def __init__(self):
@@ -114,11 +115,11 @@ class ESPThreadSetup:
         return True
 
     def setup_border_router(self):
-        """Flash the Thread Border Router using example images as per the tutorial"""
+        """Flash the Thread Border Router firmware which will automatically handle RCP flashing"""
         print("\n=== Setting up ESP Thread Border Router/Zigbee Gateway V1.2 ===")
         input("Connect your ESP Thread Border Router/Zigbee Gateway V1.2 device and press Enter to continue...")
         
-        # Get the port
+        # Get the port using improved detection
         self.border_router_port = self._find_device_port("ESP Thread Border Router")
         if not self.border_router_port:
             print("ERROR: ESP Thread Border Router device not found")
@@ -126,35 +127,8 @@ class ESPThreadSetup:
             
         print(f"ESP Thread Border Router found at port: {self.border_router_port}")
         
-        # First, flash the RCP firmware to ESP32H2 using the IDF example
-        print("\n1. Flashing the RCP firmware to ESP32H2 from IDF examples...")
-        
-        # Check if the OT RCP example directory exists in ESP-IDF
-        rcp_example_dir = os.path.join(self.esp_idf_path, "examples/openthread/ot_rcp")
-        if not os.path.exists(rcp_example_dir):
-            print(f"ERROR: RCP example directory not found at {rcp_example_dir}")
-            print("Please make sure the ESP-IDF repository is complete with examples")
-            return False
-        
-        # Change to the RCP example directory
-        os.chdir(rcp_example_dir)
-        
-        # Flash the RCP firmware to ESP32H2 using the example
-        flash_rcp_cmd = [
-            "idf.py", 
-            "set-target", "esp32h2",
-            "-p", self.border_router_port, 
-            "flash"
-        ]
-        
-        if subprocess.run(flash_rcp_cmd, check=True).returncode != 0:
-            print("ERROR: Failed to flash RCP firmware example")
-            return False
-            
-        print("✓ RCP firmware flashed to ESP32H2 successfully")
-        
-        # Then, flash the Border Router firmware to ESP32S3 using the example
-        print("\n2. Flashing the Border Router firmware to ESP32S3 from examples...")
+        # Flash the Border Router firmware (will automatically handle RCP)
+        print("\nFlashing the Border Router firmware...")
         
         # Change to the Border Router example directory
         br_example_dir = os.path.join(self.esp_thread_br_path, "examples/basic_thread_border_router")
@@ -167,16 +141,18 @@ class ESPThreadSetup:
         
         flash_br_cmd = [
             "idf.py", 
-            "set-target", "esp32s3", 
             "-p", self.border_router_port, 
             "flash"
         ]
         
-        if subprocess.run(flash_br_cmd, check=True).returncode != 0:
-            print("ERROR: Failed to flash Border Router firmware example")
+        print("Flashing Border Router firmware (this may take several minutes)...")
+        try:
+            subprocess.run(flash_br_cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Failed to flash Border Router firmware: {e}")
             return False
             
-        print("✓ Border Router firmware flashed to ESP32S3 successfully")
+        print("✓ Border Router firmware flashed successfully")
         return True
 
     def build_and_flash_cli(self):
@@ -184,7 +160,7 @@ class ESPThreadSetup:
         print("\n=== Setting up CLI (ESP32C6) ===")
         input("Connect your ESP32C6 (CLI) device and press Enter to continue...")
         
-        # Get the port
+        # Get the port using improved detection
         self.cli_port = self._find_device_port("ESP32C6 CLI")
         if not self.cli_port:
             print("ERROR: ESP32C6 device not found")
@@ -203,7 +179,7 @@ class ESPThreadSetup:
         os.chdir(cli_example_dir)
         
         # Flash the CLI example
-        print("Flashing OpenThread CLI example...")
+        print("Flashing OpenThread CLI example for ESP32C6...")
         flash_cmd = [
             "idf.py", 
             "set-target", "esp32c6", 
@@ -211,11 +187,14 @@ class ESPThreadSetup:
             "flash"
         ]
         
-        if subprocess.run(flash_cmd, check=True).returncode != 0:
-            print("ERROR: Failed to flash OpenThread CLI example")
+        print("Flashing CLI firmware (this may take several minutes)...")
+        try:
+            subprocess.run(flash_cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Failed to flash OpenThread CLI example: {e}")
             return False
             
-        print("✓ OpenThread CLI (ESP32C6) flashed successfully from example")
+        print("✓ OpenThread CLI (ESP32C6) flashed successfully")
         return True
 
     def create_dataset(self):
@@ -291,46 +270,42 @@ class ESPThreadSetup:
         return True
 
     def _find_device_port(self, device_type):
-        """Find the port for a specific ESP32 device"""
+        """Improved device port detection using pySerial"""
         try:
-            # Run dmesg to find recently connected devices
-            result = subprocess.run(["dmesg"], capture_output=True, text=True, check=True)
-            output = result.stdout
+            # Get all serial ports
+            ports = serial.tools.list_ports.comports()
             
-            # Look for CP210x or CH340 USB to serial converters commonly used with ESP32
-            usb_serial_lines = [line for line in output.split('\n') if 'cp210x' in line.lower() or 'ch340' in line.lower() or 'ftdi' in line.lower()]
+            if not ports:
+                return input(f"No serial ports found. Please manually enter port for {device_type} (e.g., /dev/ttyUSB0): ")
             
-            # Get the most recently connected device
-            if usb_serial_lines:
-                # Extract ttyUSB or ttyACM device
-                for line in reversed(usb_serial_lines):
-                    match = re.search(r'tty(USB|ACM)[0-9]+', line)
-                    if match:
-                        port = f"/dev/{match.group(0)}"
-                        return port
+            # Filter for likely ESP32 ports (CP210x, CH340, FTDI)
+            esp_ports = [
+                p for p in ports 
+                if 'CP210' in p.description or 
+                   'CH340' in p.description or 
+                   'FTDI' in p.description
+            ]
             
-            # If not found with dmesg, try listing all ttyUSB devices
-            devices = os.listdir('/dev')
-            usb_devices = [dev for dev in devices if dev.startswith('ttyUSB') or dev.startswith('ttyACM')]
+            if not esp_ports:
+                print("No ESP32-like devices found. Available ports:")
+                for i, p in enumerate(ports):
+                    print(f"{i+1}. {p.device} ({p.description})")
+                choice = int(input(f"Select port for {device_type} (1-{len(ports)}): ")) - 1
+                return ports[choice].device
             
-            if usb_devices:
-                # Ask user to select the correct port
-                print(f"Multiple USB devices found. Please select the port for your {device_type}:")
-                for i, dev in enumerate(usb_devices):
-                    print(f"{i+1}. /dev/{dev}")
-                
-                choice = int(input("Enter number: ")) - 1
-                if 0 <= choice < len(usb_devices):
-                    return f"/dev/{usb_devices[choice]}"
+            if len(esp_ports) == 1:
+                return esp_ports[0].device
             
-            # If still not found, ask user to input manually
-            port = input(f"Could not automatically detect {device_type} port. Please enter the port (e.g., /dev/ttyUSB0): ")
-            return port.strip()
+            # Multiple ESP-like devices found
+            print(f"Multiple ESP32-like devices found. Please select port for {device_type}:")
+            for i, p in enumerate(esp_ports):
+                print(f"{i+1}. {p.device} ({p.description})")
+            choice = int(input(f"Enter number (1-{len(esp_ports)}): ")) - 1
+            return esp_ports[choice].device
             
         except Exception as e:
             print(f"Error detecting device port: {e}")
-            port = input(f"Please manually enter the port for {device_type} (e.g., /dev/ttyUSB0): ")
-            return port.strip()
+            return input(f"Please manually enter the port for {device_type} (e.g., /dev/ttyUSB0): ")
 
     def _check_port(self, port):
         """Check if a port exists"""
@@ -358,8 +333,8 @@ class ESPThreadSetup:
         print("\n=== ESP Thread Border Router Setup Steps ===")
         print("Please select which steps you want to perform:")
         print("1. Download/update repositories")
-        print("2. Setup Border Router (ESP32S3) and RCP (ESP32H2) from examples")
-        print("3. Setup CLI (ESP32C6) from examples")
+        print("2. Setup Border Router (ESP32S3 with RCP)")
+        print("3. Setup CLI (ESP32C6)")
         print("4. Create Thread network dataset")
         print("5. Configure CLI to join Thread network")
         print("6. Setup Web GUI")
@@ -413,7 +388,7 @@ class ESPThreadSetup:
         
         print("\n=== Setup Complete! ===")
         print("Your OpenThread Border Router system is now set up and running.")
-        print("Border Router (ESP32S3) and RCP (ESP32H2) on", self.border_router_port)
+        print("Border Router (ESP32S3 with RCP) on", self.border_router_port)
         print("CLI (ESP32C6) on", self.cli_port)
         print("Thread Network Dataset has been saved to thread_dataset.txt")
         
@@ -425,7 +400,6 @@ class ESPThreadSetup:
         print("This script will guide you through setting up your OpenThread Border Router system.")
         print("Following the official Espressif tutorial: https://docs.espressif.com/projects/esp-thread-br/en/latest/dev-guide/build_and_run.html")
         print("Using the example locations from the tutorial:")
-        print("- RCP: $IDF_PATH/examples/openthread/ot_rcp")
         print("- Border Router: esp-thread-br/examples/basic_thread_border_router")
         print("- CLI: $IDF_PATH/examples/openthread/ot_cli")
         
