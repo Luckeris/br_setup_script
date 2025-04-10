@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
- import os
- import sys
- import time
- import subprocess
- import shutil
- from pathlib import Path
- import re
- import json
- import urllib.request
- import zipfile
- import tempfile
- import serial.tools.list_ports
- import glob
+import os
+import sys
+import time
+import subprocess
+import shutil
+from pathlib import Path
+import re
+import json
+import urllib.request
+import zipfile
+import tempfile
+import serial.tools.list_ports
+import glob
 
- class ESPThreadSetup:
+class ESPThreadSetup:
      def __init__(self):
          self.home_dir = str(Path.home())
          self.esp_idf_path = os.environ.get('IDF_PATH', f"{self.home_dir}/esp/esp-idf")
