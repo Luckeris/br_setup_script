@@ -187,65 +187,65 @@ class ESPThreadSetup:
             print(f"Couldn't read log files: {e}")
 
     def setup_border_router(self):
-    """Flash the Thread Border Router firmware with RCP auto-update disabled"""
-    print("\n=== Setting up ESP Thread Border Router ===")
-    input("Connect your ESP Thread Border Router device and press Enter to continue...")
+        """Flash the Thread Border Router firmware with RCP auto-update disabled"""
+        print("\n=== Setting up ESP Thread Border Router ===")
+        input("Connect your ESP Thread Border Router device and press Enter to continue...")
     
-    self.border_router_port = self._find_device_port("ESP Thread Border Router")
-    if not self.border_router_port:
-        print("ERROR: ESP Thread Border Router device not found")
-        return False
+        self.border_router_port = self._find_device_port("ESP Thread Border Router")
+        if not self.border_router_port:
+            print("ERROR: ESP Thread Border Router device not found")
+            return False
         
-    print(f"ESP Thread Border Router found at port: {self.border_router_port}")
+        print(f"ESP Thread Border Router found at port: {self.border_router_port}")
     
-    # Change to the Border Router example directory
-    br_example_dir = os.path.join(self.esp_thread_br_path, "examples/basic_thread_border_router")
-    if not os.path.exists(br_example_dir):
-        print(f"ERROR: Border Router example directory not found at {br_example_dir}")
-        return False
+        # Change to the Border Router example directory
+        br_example_dir = os.path.join(self.esp_thread_br_path, "examples/basic_thread_border_router")
+        if not os.path.exists(br_example_dir):
+            print(f"ERROR: Border Router example directory not found at {br_example_dir}")
+            return False
     
-    os.chdir(br_example_dir)
+        os.chdir(br_example_dir)
     
-    # Disable RCP auto-update by modifying the sdkconfig file
-    print("Disabling RCP auto-update...")
-    try:
-        # Look for existing sdkconfig file
-        sdkconfig_path = os.path.join(br_example_dir, "sdkconfig.defaults")
-        if os.path.exists(sdkconfig_path):
-            # Add or update the RCP auto-update setting
-            with open(sdkconfig_path, "a") as f:
-                f.write("\n# Disable RCP auto-update to prevent update loops\n")
-                f.write("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP=n\n")
-                f.write("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE=0\n")
-        else:
-            print("Warning: sdkconfig.defaults not found, unable to disable RCP auto-update")
-    except Exception as e:
-        print(f"Error modifying sdkconfig: {e}")
+        # Disable RCP auto-update by modifying the sdkconfig file
+        print("Disabling RCP auto-update...")
+        try:
+            # Look for existing sdkconfig file
+            sdkconfig_path = os.path.join(br_example_dir, "sdkconfig.defaults")
+            if os.path.exists(sdkconfig_path):
+                # Add or update the RCP auto-update setting
+                with open(sdkconfig_path, "a") as f:
+                    f.write("\n# Disable RCP auto-update to prevent update loops\n")
+                    f.write("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP=n\n")
+                    f.write("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE=0\n")
+            else:
+                print("Warning: sdkconfig.defaults not found, unable to disable RCP auto-update")
+        except Exception as e:
+            print(f"Error modifying sdkconfig: {e}")
     
-    # Clean build directory and rebuild
-    print("Cleaning previous build...")
-    clean_cmd = ["idf.py", "fullclean"]
-    subprocess.run(clean_cmd, check=False)
+        # Clean build directory and rebuild
+        print("Cleaning previous build...")
+        clean_cmd = ["idf.py", "fullclean"]
+        subprocess.run(clean_cmd, check=False)
     
-    print("Building Border Router firmware...")
-    build_cmd = ["idf.py", "build"]
-    try:
-        subprocess.run(build_cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"ERROR: Build failed: {e}")
-        return False
+        print("Building Border Router firmware...")
+        build_cmd = ["idf.py", "build"]
+        try:
+            subprocess.run(build_cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Build failed: {e}")
+            return False
     
-    # Flash the Border Router
-    print("Flashing Border Router firmware...")
-    flash_cmd = ["idf.py", "-p", self.border_router_port, "flash"]
-    try:
-        subprocess.run(flash_cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"ERROR: Flashing failed: {e}")
-        return False
+        # Flash the Border Router
+        print("Flashing Border Router firmware...")
+        flash_cmd = ["idf.py", "-p", self.border_router_port, "flash"]
+        try:
+            subprocess.run(flash_cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR: Flashing failed: {e}")
+            return False
         
-    print("✓ Border Router firmware flashed successfully")
-    return True
+        print("✓ Border Router firmware flashed successfully")
+        return True
 
     def create_dataset(self):
         """Create a Thread network dataset"""
