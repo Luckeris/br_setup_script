@@ -287,10 +287,10 @@ class ESPThreadSetup:
         # Flash the CLI example
         print("Flashing OpenThread CLI example for ESP32C6...")
         flash_cmd = [
-            "idf.py", 
-            "set-target", "esp32c6", 
-            "-p", self.cli_port, 
-            "flash"
+        "idf.py", 
+        "-p", self.cli_port,
+        "set-target", "esp32c6", 
+        "flash"
         ]
         
         print("Flashing CLI firmware (this may take several minutes)...")
