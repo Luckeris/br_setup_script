@@ -1,3 +1,6 @@
+# python program for seting-up esp32 as a openthread border router
+
+#--------------------------------------------------------------------------------------------------
 #!/usr/bin/env python3
 import os
 import sys
@@ -12,8 +15,10 @@ import zipfile
 import tempfile
 import serial.tools.list_ports
 import glob
+#--------------------------------------------------------------------------------------------------
 
 class ESPThreadSetup:
+    #-----------------------------------------------------------------------------------
     def __init__(self):
         self.home_dir = str(Path.home())
         self.esp_idf_path = os.environ.get('IDF_PATH', f"{self.home_dir}/esp/esp-idf")
@@ -22,7 +27,9 @@ class ESPThreadSetup:
         self.cli_port = None
         self.dataset = None
         self.skip_repositories = False
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def check_prerequisites(self):
         """Check if ESP-IDF environment is properly set up"""
         print("Checking prerequisites...")
@@ -58,7 +65,9 @@ class ESPThreadSetup:
                 print("Will download/update repositories...")
 
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def download_repositories(self):
         """Download all necessary repositories as ZIP files instead of git clone"""
         if self.skip_repositories:
@@ -114,7 +123,9 @@ class ESPThreadSetup:
 
         print("✓ All repositories downloaded successfully")
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def build_rcp_firmware(self):
         """Build the RCP firmware required for the Border Router"""
         print("\n=== Building RCP Firmware ===")
@@ -151,7 +162,9 @@ class ESPThreadSetup:
 
         print("✓ RCP firmware built successfully")
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def _show_build_logs(self, build_dir):
         """Display relevant build logs when failures occur"""
         log_dir = os.path.join(build_dir, "log")
@@ -182,7 +195,9 @@ class ESPThreadSetup:
                         print(line.strip())
         except Exception as e:
             print(f"Couldn't read log files: {e}")
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def setup_border_router(self):
         """Flash the Thread Border Router firmware with RCP auto-update disabled"""
         print("\n=== Setting up ESP Thread Border Router ===")
@@ -264,7 +279,9 @@ class ESPThreadSetup:
 
         print("✓ Border Router firmware flashed successfully")
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def build_and_flash_cli(self):
         """Flash the CLI using ESP32C6 example image from ESP-IDF"""
         print("\n=== Setting up CLI (ESP32C6) ===")
@@ -311,7 +328,9 @@ class ESPThreadSetup:
 
         print("✓ OpenThread CLI (ESP32C6) flashed successfully")
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def create_dataset(self):
         """Create a Thread network dataset"""
         print("\n=== Creating Thread Network Dataset ===")
@@ -351,7 +370,9 @@ class ESPThreadSetup:
 
         print(f"✓ Thread network dataset created and saved to thread_dataset.txt")
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def configure_cli(self):
         """Configure the CLI device with the network dataset"""
         print("\n=== Configuring OpenThread CLI to Join Network ===")
@@ -383,7 +404,9 @@ class ESPThreadSetup:
 
         print("✓ OpenThread CLI configured successfully")
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def _find_device_port(self, device_type):
         """Improved device port detection using pySerial"""
         try:
@@ -421,11 +444,15 @@ class ESPThreadSetup:
         except Exception as e:
             print(f"Error detecting device port: {e}")
             return input(f"Please manually enter the port for {device_type} (e.g., /dev/ttyUSB0): ")
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def _check_port(self, port):
         """Check if a port exists"""
         return os.path.exists(port) if port else False
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def setup_web_gui(self):
         """Setup the Web GUI for the Border Router"""
         print("\n=== Setting up Web GUI ===")
@@ -442,7 +469,9 @@ class ESPThreadSetup:
         print("3. View connected devices")
 
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def show_steps_menu(self):
         """Show a menu to let user select which steps to perform"""
         print("\n=== ESP Thread Border Router Setup Steps ===")
@@ -484,7 +513,9 @@ class ESPThreadSetup:
 
         # Return to the menu after completing a step
         self.show_steps_menu()
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def run_all_steps(self):
         """Run all setup steps sequentially"""
         if not self.download_repositories():
@@ -514,7 +545,9 @@ class ESPThreadSetup:
         print("Thread Network Dataset has been saved to thread_dataset.txt")
 
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def create_fallback_rcp_files(self):
         """Create fallback RCP files if build fails"""
         print("\n=== Creating Fallback RCP Files ===")
@@ -535,7 +568,9 @@ class ESPThreadSetup:
         print("This can help bypass the build error, but you may need to manually flash the RCP later.")
 
         return True
-
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def execute(self):
         """Main execution method"""
         print("=== ESP Thread Border Router Setup Script ===")
@@ -557,8 +592,9 @@ class ESPThreadSetup:
             self.run_all_steps()
 
         return True
+    #-----------------------------------------------------------------------------------
 
-
+#-----------------------------------------------------------------------------------
 if __name__ == "__main__":
     setup = ESPThreadSetup()
 
@@ -570,3 +606,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nError occurred during setup: {e}")
         sys.exit(1)
+#-----------------------------------------------------------------------------------
