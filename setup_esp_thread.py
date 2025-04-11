@@ -24,6 +24,8 @@ class ESPThreadSetup:
         self.cli_port = None
         self.dataset = None
         self.skip_repositories = False
+        self.wifi_ssid = None
+        self.wifi_password = None
     
     #-----------------------------------------------------------------------------------
     def check_prerequisites(self):
@@ -194,6 +196,19 @@ class ESPThreadSetup:
     #-----------------------------------------------------------------------------------
     
     #-----------------------------------------------------------------------------------
+    def configure_wifi_settings(self):
+        """Configure WiFi settings for the Border Router"""
+        print("\n=== Configuring WiFi Settings ===")
+        print("The Border Router needs to connect to your WiFi network to provide web GUI access.")
+        
+        self.wifi_ssid = input("Enter your WiFi SSID: ")
+        self.wifi_password = input("Enter your WiFi password: ")
+        
+        print("✓ WiFi settings configured")
+        return True
+    #-----------------------------------------------------------------------------------
+    
+    #-----------------------------------------------------------------------------------
     def setup_border_router(self):
         """Flash the Thread Border Router firmware with RCP auto-update disabled and Web GUI enabled"""
         print("\n=== Setting up ESP Thread Border Router ===")
@@ -215,48 +230,66 @@ class ESPThreadSetup:
 
         os.chdir(br_example_dir)
 
-        # Disable RCP auto-update and Enable Web GUI by modifying the sdkconfig file
-        print("Disabling RCP auto-update and Enabling Web GUI...")
-        try:
-            sdkconfig_path = os.path.join(br_example_dir, "sdkconfig")
-            if not os.path.exists(sdkconfig_path):
-                sdkconfig_path = os.path.join(br_example_dir, "sdkconfig.defaults")
-                if not os.path.exists(sdkconfig_path):
-                    print("Warning: Neither sdkconfig nor sdkconfig.defaults found.")
-                    return True  # Cannot disable, but continue
+        # Check if WiFi settings are configured
+        if not self.wifi_ssid or not self.wifi_password:
+            print("WiFi settings not configured. Let's set them up now.")
+            self.configure_wifi_settings()
 
-            with open(sdkconfig_path, "r") as f:
+        # Create or modify sdkconfig.defaults to include WiFi settings
+        print("Configuring Border Router with WiFi settings...")
+        sdkconfig_defaults_path = os.path.join(br_example_dir, "sdkconfig.defaults")
+        
+        # Read existing content or create new file
+        if os.path.exists(sdkconfig_defaults_path):
+            with open(sdkconfig_defaults_path, "r") as f:
                 content = f.readlines()
-
-            found_auto_update = False
-            found_update_sequence = False
-            found_web_gui = False  # Track if web GUI config is found
-            new_content = []
-            for line in content:
-                if line.startswith("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP="):
-                    new_content.append("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP=n\n")
-                    found_auto_update = True
-                elif line.startswith("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE="):
-                    new_content.append("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE=0\n")
-                    found_update_sequence = True
-                elif line.startswith("CONFIG_OPENTHREAD_BR_WEB_GUI_ENABLE="):  # Add this condition
-                    new_content.append("CONFIG_OPENTHREAD_BR_WEB_GUI_ENABLE=y\n")
-                    found_web_gui = True
-                else:
-                    new_content.append(line)
-
-            if not found_auto_update:
-                new_content.append("\nCONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP=n\n")
-            if not found_update_sequence:
+        else:
+            content = []
+        
+        # Prepare new content with WiFi settings
+        new_content = []
+        wifi_ssid_found = False
+        wifi_password_found = False
+        auto_update_found = False
+        update_sequence_found = False
+        web_gui_found = False
+        
+        for line in content:
+            if line.startswith("CONFIG_ESP_WIFI_SSID="):
+                new_content.append(f'CONFIG_ESP_WIFI_SSID="{self.wifi_ssid}"\n')
+                wifi_ssid_found = True
+            elif line.startswith("CONFIG_ESP_WIFI_PASSWORD="):
+                new_content.append(f'CONFIG_ESP_WIFI_PASSWORD="{self.wifi_password}"\n')
+                wifi_password_found = True
+            elif line.startswith("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP="):
+                new_content.append("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP=n\n")
+                auto_update_found = True
+            elif line.startswith("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE="):
                 new_content.append("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE=0\n")
-            if not found_web_gui:  # If not found, add it
+                update_sequence_found = True
+            elif line.startswith("CONFIG_OPENTHREAD_BR_WEB_GUI_ENABLE="):
                 new_content.append("CONFIG_OPENTHREAD_BR_WEB_GUI_ENABLE=y\n")
-
-            with open(sdkconfig_path, "w") as f:
-                f.writelines(new_content)
-
-        except Exception as e:
-            print(f"Error modifying sdkconfig: {e}")
+                web_gui_found = True
+            else:
+                new_content.append(line)
+        
+        # Add missing configurations
+        if not wifi_ssid_found:
+            new_content.append(f'CONFIG_ESP_WIFI_SSID="{self.wifi_ssid}"\n')
+        if not wifi_password_found:
+            new_content.append(f'CONFIG_ESP_WIFI_PASSWORD="{self.wifi_password}"\n')
+        if not auto_update_found:
+            new_content.append("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP=n\n")
+        if not update_sequence_found:
+            new_content.append("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE=0\n")
+        if not web_gui_found:
+            new_content.append("CONFIG_OPENTHREAD_BR_WEB_GUI_ENABLE=y\n")
+        
+        # Write updated content back to file
+        with open(sdkconfig_defaults_path, "w") as f:
+            f.writelines(new_content)
+        
+        print("✓ WiFi settings configured in sdkconfig.defaults")
 
         # Clean build directory and rebuild
         print("Cleaning previous build...")
@@ -600,6 +633,7 @@ class ESPThreadSetup:
         """Setup the Web GUI for the Border Router and display its IP address"""
         print("\n=== Setting up Web GUI ===")
         print("The Border Router provides a web interface for configuration and monitoring.")
+        print(f"The Border Router is configured to connect to WiFi SSID: {self.wifi_ssid}")
 
         # Get the IP address of the Border Router
         print("\nIMPORTANT: The Border Router should be connected to your WiFi network.")
@@ -630,34 +664,37 @@ class ESPThreadSetup:
         print("\n=== ESP Thread Border Router Setup Steps ===")
         print("Please select which steps you want to perform:")
         print("1. Download/update repositories")
-        print("2. Build RCP firmware (required before building Border Router)")
-        print("3. Setup Border Router (ESP32S3 with RCP)")
-        print("4. Setup CLI (ESP32C6)")
-        print("5. Create Thread network dataset (requires BOTH devices connected)")
-        print("6. Configure CLI to join Thread network (requires BOTH devices connected)")
-        print("7. Setup Web GUI")
-        print("8. Run all steps (1-7)")
-        print("9. Exit")
+        print("2. Configure WiFi settings")
+        print("3. Build RCP firmware (required before building Border Router)")
+        print("4. Setup Border Router (ESP32S3 with RCP)")
+        print("5. Setup CLI (ESP32C6)")
+        print("6. Create Thread network dataset (requires BOTH devices connected)")
+        print("7. Configure CLI to join Thread network (requires BOTH devices connected)")
+        print("8. Setup Web GUI")
+        print("9. Run all steps (1-8)")
+        print("10. Exit")
 
-        choice = input("\nEnter your choice (1-9): ")
+        choice = input("\nEnter your choice (1-10): ")
 
         if choice == '1':
             self.download_repositories()
         elif choice == '2':
-            self.build_rcp_firmware()
+            self.configure_wifi_settings()
         elif choice == '3':
-            self.setup_border_router()
+            self.build_rcp_firmware()
         elif choice == '4':
-            self.build_and_flash_cli()
+            self.setup_border_router()
         elif choice == '5':
-            self.create_dataset()
+            self.build_and_flash_cli()
         elif choice == '6':
-            self.configure_cli()
+            self.create_dataset()
         elif choice == '7':
-            self.setup_web_gui()
+            self.configure_cli()
         elif choice == '8':
-            self.run_all_steps()
+            self.setup_web_gui()
         elif choice == '9':
+            self.run_all_steps()
+        elif choice == '10':
             print("Exiting...")
             sys.exit(0)
         else:
@@ -678,9 +715,12 @@ class ESPThreadSetup:
 
         if not self.download_repositories():
             return False
+            
+        if not self.configure_wifi_settings():
+            return False
 
-        # if not self.build_rcp_firmware():  # Skipping separate RCP build for integrated gateway
-        #     return False
+        if not self.build_rcp_firmware():
+            return False
 
         if not self.setup_border_router():
             return False
@@ -729,6 +769,7 @@ class ESPThreadSetup:
         print("\nBorder Router (ESP32S3 with RCP) on", self.border_router_port)
         print("CLI (ESP32C6) on", self.cli_port)
         print("Thread Network Dataset has been saved to thread_dataset.txt")
+        print(f"Border Router is configured to connect to WiFi SSID: {self.wifi_ssid}")
 
         print("\nTo further verify the Thread network:")
         print("1.  Use the Web GUI (if enabled and IP is accessible) to check the status of the Thread network and connected devices.")
