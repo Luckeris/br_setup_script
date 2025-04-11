@@ -24,7 +24,6 @@ class ESPThreadSetup:
         self.cli_port = None
         self.dataset = None
         self.skip_repositories = False
-    #-----------------------------------------------------------------------------------
     
     #-----------------------------------------------------------------------------------
     def check_prerequisites(self):
@@ -155,7 +154,7 @@ class ESPThreadSetup:
         except subprocess.CalledProcessError as e:
             print(f"ERROR: Failed to build RCP firmware: {e}")
             self._show_build_logs(rcp_example_dir + "/build")
-            return False # Stop if RCP build fails
+            return False  # Stop if RCP build fails
 
         print("✓ RCP firmware built successfully")
         return True
@@ -196,7 +195,7 @@ class ESPThreadSetup:
     
     #-----------------------------------------------------------------------------------
     def setup_border_router(self):
-        """Flash the Thread Border Router firmware with RCP auto-update disabled"""
+        """Flash the Thread Border Router firmware with RCP auto-update disabled and Web GUI enabled"""
         print("\n=== Setting up ESP Thread Border Router ===")
         print("IMPORTANT: For this step, you only need to connect the Border Router device.")
         print("The CLI device will be set up in a later step.")
@@ -206,7 +205,6 @@ class ESPThreadSetup:
         if not self.border_router_port:
             print("ERROR: ESP Thread Border Router device not found")
             return False
-
         print(f"ESP Thread Border Router found at port: {self.border_router_port}")
 
         # Change to the Border Router example directory
@@ -217,21 +215,22 @@ class ESPThreadSetup:
 
         os.chdir(br_example_dir)
 
-        # Disable RCP auto-update by modifying the sdkconfig file
-        print("Disabling RCP auto-update...")
+        # Disable RCP auto-update and Enable Web GUI by modifying the sdkconfig file
+        print("Disabling RCP auto-update and Enabling Web GUI...")
         try:
             sdkconfig_path = os.path.join(br_example_dir, "sdkconfig")
             if not os.path.exists(sdkconfig_path):
                 sdkconfig_path = os.path.join(br_example_dir, "sdkconfig.defaults")
                 if not os.path.exists(sdkconfig_path):
                     print("Warning: Neither sdkconfig nor sdkconfig.defaults found.")
-                    return True # Cannot disable, but continue
+                    return True  # Cannot disable, but continue
 
             with open(sdkconfig_path, "r") as f:
                 content = f.readlines()
 
             found_auto_update = False
             found_update_sequence = False
+            found_web_gui = False  # Track if web GUI config is found
             new_content = []
             for line in content:
                 if line.startswith("CONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP="):
@@ -240,6 +239,9 @@ class ESPThreadSetup:
                 elif line.startswith("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE="):
                     new_content.append("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE=0\n")
                     found_update_sequence = True
+                elif line.startswith("CONFIG_OPENTHREAD_BR_WEB_GUI_ENABLE="):  # Add this condition
+                    new_content.append("CONFIG_OPENTHREAD_BR_WEB_GUI_ENABLE=y\n")
+                    found_web_gui = True
                 else:
                     new_content.append(line)
 
@@ -247,6 +249,8 @@ class ESPThreadSetup:
                 new_content.append("\nCONFIG_OPENTHREAD_BR_AUTO_UPDATE_RCP=n\n")
             if not found_update_sequence:
                 new_content.append("CONFIG_OPENTHREAD_BR_UPDATE_SEQUENCE=0\n")
+            if not found_web_gui:  # If not found, add it
+                new_content.append("CONFIG_OPENTHREAD_BR_WEB_GUI_ENABLE=y\n")
 
             with open(sdkconfig_path, "w") as f:
                 f.writelines(new_content)
@@ -593,15 +597,14 @@ class ESPThreadSetup:
     
     #-----------------------------------------------------------------------------------
     def setup_web_gui(self):
-        """Setup the Web GUI for the Border Router"""
+        """Setup the Web GUI for the Border Router and display its IP address"""
         print("\n=== Setting up Web GUI ===")
         print("The Border Router provides a web interface for configuration and monitoring.")
-        print("To access the web interface:")
 
         # Get the IP address of the Border Router
         print("\nIMPORTANT: The Border Router should be connected to your WiFi network.")
-        print("Check your router's DHCP client list to find the IP address of the Border Router.")
-        ip_address = input("Please enter the IP address of your Border Router: ")
+        print("You can usually find the Border Router's IP address in your Wi-Fi router's device list.")
+        ip_address = input("Please enter the IP address of your Border Router: ")  # User Input
 
         print(f"\nYou can access the Web GUI at http://{ip_address}")
         print("Use the web interface to:")
@@ -609,6 +612,15 @@ class ESPThreadSetup:
         print("2. Configure network settings")
         print("3. View connected devices")
 
+        # Basic verification (can be expanded)
+        print("\nVerifying basic web GUI access...")
+        try:
+            #Try to open the web page
+            urllib.request.urlopen("http://"+ip_address)
+            print("✓ Web GUI is accessible!")
+        except:
+            print("ERROR: Web GUI might not be accessible at this IP. Please double-check the IP address and ensure the Border Router is connected to the network.")
+        
         return True
     #-----------------------------------------------------------------------------------
     
@@ -658,12 +670,12 @@ class ESPThreadSetup:
     
     #-----------------------------------------------------------------------------------
     def run_all_steps(self):
-        """Run all setup steps sequentially"""
+        """Run all setup steps sequentially and verify the setup"""
         print("\n=== Running Complete Setup Process ===")
         print("This will guide you through the entire setup process step by step.")
         print("You'll need both your ESP Thread Border Router and ESP32C6 CLI devices.")
         print("At different stages, you'll be prompted to connect one or both devices.")
-        
+
         if not self.download_repositories():
             return False
 
@@ -691,12 +703,40 @@ class ESPThreadSetup:
 
         print("\n=== Setup Complete! ===")
         print("Your OpenThread Border Router system is now set up and running.")
-        print("Border Router (ESP32S3 with RCP) on", self.border_router_port)
+
+        # --- Verification ---
+        print("\n=== Verifying Setup ===")
+        print("Performing basic verification checks...")
+
+        # 1. Check if ports are valid (already done in individual steps, but can re-verify)
+        if not self._check_port(self.border_router_port):
+            print("ERROR: Border Router port is not valid.")
+            return False
+        print("✓ Border Router port verified.")
+
+        if not self._check_port(self.cli_port):
+            print("ERROR: CLI port is not valid.")
+            return False
+        print("✓ CLI port verified.")
+
+        # 2. Check for dataset file
+        dataset_file = os.path.join(self.esp_thread_br_path, "examples/basic_thread_border_router/thread_dataset.txt")
+        if not os.path.exists(dataset_file):
+            print("ERROR: Thread dataset file not found.")
+            return False
+        print("✓ Thread dataset file found.")
+
+        print("\nBorder Router (ESP32S3 with RCP) on", self.border_router_port)
         print("CLI (ESP32C6) on", self.cli_port)
         print("Thread Network Dataset has been saved to thread_dataset.txt")
+
+        print("\nTo further verify the Thread network:")
+        print("1.  Use the Web GUI (if enabled and IP is accessible) to check the status of the Thread network and connected devices.")
+        print("2.  Open the CLI console and use Thread CLI commands (e.g., `state`, `ping`) to verify communication within the Thread network.")
+
         print("\nYou now have a working Thread network with:")
-        print("1. A Border Router that connects your Thread network to your WiFi network")
-        print("2. A CLI device that can communicate over the Thread network")
+        print("1.  A Border Router that connects your Thread network to your WiFi network")
+        print("2.  A CLI device that can communicate over the Thread network")
         print("\nYou can use this setup as a self-made Thread dongle for your projects.")
 
         return True
@@ -704,41 +744,43 @@ class ESPThreadSetup:
     
     #-----------------------------------------------------------------------------------
     def create_fallback_rcp_files(self):
-        """Create fallback RCP files if build fails"""
+        """Create fallback RCP files if they don't exist"""
         print("\n=== Creating Fallback RCP Files ===")
+        print("This is a fallback mechanism to ensure RCP files are available.")
+        print("It's recommended to build the RCP firmware properly, but this will help in case of issues.")
 
-        # Navigate to the RCP example directory
         rcp_example_dir = os.path.join(self.esp_idf_path, "examples/openthread/ot_rcp")
         if not os.path.exists(rcp_example_dir):
-            os.makedirs(os.path.join(rcp_example_dir, "build"), exist_ok=True)
-        else:
-            os.makedirs(os.path.join(rcp_example_dir, "build"), exist_ok=True)
+            print(f"ERROR: RCP example directory not found at {rcp_example_dir}")
+            return False
 
-        # Create a placeholder rcp_version file
-        rcp_version_path = os.path.join(rcp_example_dir, "build", "rcp_version")
-        with open(rcp_version_path, "w") as f:
-            f.write("1.0.0-fallback")
+        # Create a dummy build directory if it doesn't exist
+        build_dir = os.path.join(rcp_example_dir, "build")
+        os.makedirs(build_dir, exist_ok=True)
 
-        print(f"Created fallback rcp_version file at {rcp_version_path}")
-        print("This can help bypass the build error, but you may need to manually flash the RCP later.")
+        # Create dummy files if they don't exist
+        rcp_bin_path_c6 = os.path.join(build_dir, "ot_rcp-esp32c6.bin")
+        rcp_bin_path_s3 = os.path.join(build_dir, "ot_rcp-esp32s3.bin")
 
-        return True
+        if not os.path.exists(rcp_bin_path_c6):
+            with open(rcp_bin_path_c6, "w") as f:
+                f.write("This is a fallback RCP file for esp32c6.\nIt's recommended to build the RCP firmware properly.")
+            print(f"Created fallback RCP file: {rcp_bin_path_c6}")
+
+        if not os.path.exists(rcp_bin_path_s3):
+            with open(rcp_bin_path_s3, "w") as f:
+                f.write("This is a fallback RCP file for esp32s3.\nIt's recommended to build the RCP firmware properly.")
+            print(f"Created fallback RCP file: {rcp_bin_path_s3}")
+
+        print("✓ Fallback RCP files created/exist")
     #-----------------------------------------------------------------------------------
-    
+
     #-----------------------------------------------------------------------------------
     def execute(self):
-        """Main execution method"""
-        print("=== ESP Thread Border Router Setup Script ===")
-        print("This script will guide you through setting up your OpenThread Border Router system.")
-        print("Following the official Espressif tutorial: https://docs.espressif.com/projects/esp-thread-br/en/latest/dev-guide/build_and_run.html")
-        
-        print("\n=== Hardware Requirements ===")
-        print("You will need:")
-        print("1. ESP Thread Border Router and Zigbee Gateway v1.2  (or compatible ESP32S3 device)")
-        print("2. ESP32C6 device for the CLI")
-        print("3. USB cables to connect both devices to your computer")
-        
-        print("\nIMPORTANT: For some steps, you'll need to connect BOTH devices to your computer simultaneously.")
+        """Main execution function"""
+        print("=== ESP Thread Border Router Setup ===")
+        print("\nThis script will guide you through setting up an OpenThread Border Router using ESP devices.")
+        print("\nIMPORTANT: For some steps, you'll need to connect BOTH devices to your computer.")
         print("This is necessary for creating the Thread network and configuring the devices to communicate.")
         
         print("\n=== Software Components ===")
