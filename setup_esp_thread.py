@@ -452,50 +452,69 @@ class ESPThreadSetup:
                 print("ERROR: No dataset available. Please run the 'Create Thread network dataset' step first.")
                 return False
 
-        # Format the dataset for CLI use
-        dataset_lines = self.dataset.strip().split('\n')
-        formatted_dataset = ""
+        # Extract the key parameters from the dataset
+        network_name = ""
+        ext_pan_id = ""
+        pan_id = ""
+        network_key = ""
+        channel = ""
+        mesh_local_prefix = ""
         
-        # Convert multi-line dataset to single-line command format
+        # Parse the dataset to extract key parameters
+        dataset_lines = self.dataset.strip().split('\n')
         for line in dataset_lines:
             if ":" in line:
                 parts = line.split(":", 1)
                 key = parts[0].strip().lower().replace(" ", "")
                 value = parts[1].strip()
                 
-                # Handle special cases
-                if key == "activetimestamp":
-                    formatted_dataset += f"activetimestamp {value} "
-                elif key == "channel":
-                    formatted_dataset += f"channel {value} "
-                elif key == "channelmask":
-                    formatted_dataset += f"channelmask {value} "
+                if key == "networkname":
+                    network_name = value
                 elif key == "extpanid":
-                    formatted_dataset += f"extpanid {value} "
-                elif key == "meshlocalprefix":
-                    # Remove the /64 suffix if present
-                    value = value.replace("/64", "").strip()
-                    formatted_dataset += f"meshlocalprefix {value} "
-                elif key == "networkkey":
-                    formatted_dataset += f"networkkey {value} "
-                elif key == "networkname":
-                    formatted_dataset += f"networkname {value} "
+                    ext_pan_id = value
                 elif key == "panid":
-                    formatted_dataset += f"panid {value} "
-                elif key == "pskc":
-                    formatted_dataset += f"pskc {value} "
-                elif key == "securitypolicy":
-                    formatted_dataset += f"securitypolicy {value} "
-        
-        formatted_dataset = formatted_dataset.strip()
+                    pan_id = value
+                elif key == "networkkey":
+                    network_key = value
+                elif key == "channel":
+                    channel = value
+                elif key == "meshlocalprefix":
+                    mesh_local_prefix = value.replace("/64", "").strip()
         
         print("\n=== CLI Console Instructions ===")
-        print("After the console opens, please run these commands to join the Thread network:")
-        print("\n1. First, use this command to set the dataset (copy the entire line):")
-        print(f"   dataset set active {formatted_dataset}")
-        print("\n2. Then run these commands:")
+        print("After the console opens, we'll try THREE different methods to set the dataset.")
+        print("If one method fails, try the next one.")
+        
+        print("\nMETHOD 1: Use individual commands to set each parameter")
+        print("Run these commands one by one:")
+        print(f"   dataset networkname {network_name}")
+        print(f"   dataset extpanid {ext_pan_id}")
+        print(f"   dataset panid {pan_id}")
+        print(f"   dataset networkkey {network_key}")
+        print(f"   dataset channel {channel}")
+        if mesh_local_prefix:
+            print(f"   dataset meshlocalprefix {mesh_local_prefix}")
+        print("   dataset commit active")
+        
+        print("\nMETHOD 2: Use the multi-line dataset input")
+        print("Run this command:")
+        print("   dataset set active -")
+        print("Then paste each line of the dataset (exactly as shown below) and press Enter after each line:")
+        for line in dataset_lines:
+            if ":" in line:
+                print(f"   {line}")
+        print("   (press Enter on an empty line to finish)")
+        
+        print("\nMETHOD 3: Try to use a hex string")
+        print("Run this command:")
+        print("   dataset tlvs active")
+        print("Copy the hex string output, then try:")
+        print("   dataset set active [paste-hex-string-here]")
+        
+        print("\nAfter successfully setting the dataset with ANY method, run:")
         print("   ifconfig up")
         print("   thread start")
+        
         print("\nYou should see messages indicating the device is joining the Thread network.")
         print("Press Ctrl+] to exit the console when done")
 
@@ -509,11 +528,14 @@ class ESPThreadSetup:
             print("\nTroubleshooting tips:")
             print("1. Make sure both devices are powered on and properly connected")
             print("2. Try resetting both devices and running the commands again")
-            print("3. Try the alternative method of setting the dataset:")
-            print("   a. Type: dataset set active -")
-            print("   b. Then paste each parameter on a new line")
-            print("   c. End with a blank line (press Enter twice)")
+            print("3. Try getting the active dataset from the Border Router in hex format:")
+            print("   a. Connect to the Border Router console")
+            print("   b. Run: 'dataset tlvs active'")
+            print("   c. Copy the hex string output")
+            print("   d. Connect to the CLI console")
+            print("   e. Run: 'dataset set active [paste-hex-string-here]'")
             print("4. Check that the Border Router is functioning properly")
+            
             retry = input("\nWould you like to try configuring the CLI again? (y/n): ")
             if retry.lower() == 'y':
                 return self.configure_cli()
