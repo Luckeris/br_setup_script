@@ -1,6 +1,3 @@
-# python program for seting-up esp32 as a openthread border router
-
-#--------------------------------------------------------------------------------------------------
 #!/usr/bin/env python3
 import os
 import sys
@@ -312,10 +309,12 @@ class ESPThreadSetup:
 
         # Build and flash the CLI example
         print("Building and flashing OpenThread CLI example for ESP32C6...")
+        
+        # FIXED COMMAND: The -p flag should come before set-target
         flash_cmd = [
             "idf.py",
+            "-p", self.cli_port,  # Port specification comes first
             "set-target", "esp32c6",
-            "-p", self.cli_port,
             "flash"
         ]
 
