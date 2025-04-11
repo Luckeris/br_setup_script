@@ -198,6 +198,8 @@ class ESPThreadSetup:
     def setup_border_router(self):
         """Flash the Thread Border Router firmware with RCP auto-update disabled"""
         print("\n=== Setting up ESP Thread Border Router ===")
+        print("IMPORTANT: For this step, you only need to connect the Border Router device.")
+        print("The CLI device will be set up in a later step.")
         input("Connect your ESP Thread Border Router device and press Enter to continue...")
 
         self.border_router_port = self._find_device_port("ESP Thread Border Router")
@@ -282,6 +284,8 @@ class ESPThreadSetup:
     def build_and_flash_cli(self):
         """Flash the CLI using ESP32C6 example image from ESP-IDF"""
         print("\n=== Setting up CLI (ESP32C6) ===")
+        print("IMPORTANT: For this step, you only need to connect the ESP32C6 CLI device.")
+        print("The Border Router device will be needed again in later steps.")
         input("Connect your ESP32C6 (CLI) device and press Enter to continue...")
 
         # Get the port using improved detection
@@ -333,35 +337,82 @@ class ESPThreadSetup:
     def create_dataset(self):
         """Create a Thread network dataset"""
         print("\n=== Creating Thread Network Dataset ===")
+        print("\n⚠️ IMPORTANT: For this step, you need to connect BOTH devices to your computer:")
+        print("1. The ESP Thread Border Router")
+        print("2. The ESP32C6 CLI device")
+        print("\nThis is necessary for creating the Thread network and configuring the CLI device.")
+        print("Please ensure both devices are connected before proceeding.")
+        
+        input("\nConfirm that BOTH devices are connected and press Enter to continue...")
+
+        # Check if border_router_port is None or not valid and get it if needed
+        if self.border_router_port is None or not self._check_port(self.border_router_port):
+            print("Border Router port not found or not set. Let's detect it now.")
+            self.border_router_port = self._find_device_port("ESP Thread Border Router")
+            if not self.border_router_port:
+                print("ERROR: Border Router device not found. Please reconnect and try again.")
+                return False
+            print(f"Border Router found at port: {self.border_router_port}")
 
         # Generate a unique network name
         network_name = f"ESP-Thread-{int(time.time()) % 10000}"
 
         # Connect to the border router to create a dataset
         br_example_dir = os.path.join(self.esp_thread_br_path, "examples/basic_thread_border_router")
+        if not os.path.exists(br_example_dir):
+            print(f"ERROR: Border Router example directory not found at {br_example_dir}")
+            print(f"Expected path: {br_example_dir}")
+            print("Please make sure you've downloaded the esp-thread-br repository.")
+            return False
+            
         os.chdir(br_example_dir)
 
         print(f"Creating Thread network: {network_name}")
-        print("Opening Border Router console...")
+        print("\n=== Border Router Console Instructions ===")
         print("After the console opens, please run these commands:")
         print("1. dataset init new")
         print(f"2. dataset networkname {network_name}")
         print("3. dataset commit active")
         print("4. dataset")
-        print("5. Copy the entire dataset output")
+        print("5. Copy the entire dataset output (select all text from 'Active Timestamp:' to the end)")
         print("\nPress Ctrl+] to exit the console when done")
 
         input("\nPress Enter to open the Border Router console...")
 
-        # Open console
-        subprocess.run(["idf.py", "-p", self.border_router_port, "monitor"], check=False)
+        # Open console with error handling
+        try:
+            print(f"Running: idf.py -p {self.border_router_port} monitor")
+            subprocess.run(["idf.py", "-p", self.border_router_port, "monitor"], check=False)
+        except Exception as e:
+            print(f"Error opening Border Router console: {e}")
+            retry = input("Would you like to manually enter the Border Router port? (y/n): ")
+            if retry.lower() == 'y':
+                self.border_router_port = input("Enter the Border Router port (e.g., /dev/ttyUSB0): ")
+                try:
+                    subprocess.run(["idf.py", "-p", self.border_router_port, "monitor"], check=False)
+                except Exception as e:
+                    print(f"Error opening Border Router console again: {e}")
+                    return False
+            else:
+                return False
 
         # Get dataset from user
+        print("\n=== Thread Network Dataset ===")
+        print("Please paste the ENTIRE dataset output below.")
+        print("It should start with 'Active Timestamp:' and include all network parameters.")
         self.dataset = input("\nPaste the dataset output here: ")
 
         if not self.dataset or "Active Timestamp:" not in self.dataset:
-            print("ERROR: Invalid dataset. Please ensure you copied the entire output.")
-            return False
+            print("\nERROR: Invalid dataset. The dataset should start with 'Active Timestamp:'")
+            print("Please ensure you copied the entire output from the 'dataset' command.")
+            retry = input("Would you like to try entering the dataset again? (y/n): ")
+            if retry.lower() == 'y':
+                self.dataset = input("\nPaste the dataset output here: ")
+                if not self.dataset or "Active Timestamp:" not in self.dataset:
+                    print("ERROR: Invalid dataset again. Please restart the dataset creation process.")
+                    return False
+            else:
+                return False
 
         # Save dataset to file
         with open("thread_dataset.txt", "w") as f:
@@ -375,21 +426,78 @@ class ESPThreadSetup:
     def configure_cli(self):
         """Configure the CLI device with the network dataset"""
         print("\n=== Configuring OpenThread CLI to Join Network ===")
-
+        print("\n⚠️ IMPORTANT: Both devices should still be connected to your computer.")
+        print("We'll now configure the CLI device to join the Thread network created by the Border Router.")
+        
+        # Verify CLI device is connected
         if not self._check_port(self.cli_port):
-            print("ERROR: CLI device not found. Please reconnect and try again.")
-            return False
+            print("CLI device not found at previous port. Let's detect it again.")
+            self.cli_port = self._find_device_port("ESP32C6 CLI")
+            if not self.cli_port:
+                print("ERROR: CLI device not found. Please reconnect and try again.")
+                return False
 
         # Change to the CLI example directory in ESP-IDF
         cli_example_dir = os.path.join(self.esp_idf_path, "examples/openthread/ot_cli")
         os.chdir(cli_example_dir)
 
-        print("Opening CLI console...")
+        # Check if we have a dataset
+        if not self.dataset:
+            dataset_file = os.path.join(self.esp_thread_br_path, "examples/basic_thread_border_router/thread_dataset.txt")
+            if os.path.exists(dataset_file):
+                with open(dataset_file, "r") as f:
+                    self.dataset = f.read()
+                print("Loaded dataset from file.")
+            else:
+                print("ERROR: No dataset available. Please run the 'Create Thread network dataset' step first.")
+                return False
+
+        # Format the dataset for CLI use
+        dataset_lines = self.dataset.strip().split('\n')
+        formatted_dataset = ""
+        
+        # Convert multi-line dataset to single-line command format
+        for line in dataset_lines:
+            if ":" in line:
+                parts = line.split(":", 1)
+                key = parts[0].strip().lower().replace(" ", "")
+                value = parts[1].strip()
+                
+                # Handle special cases
+                if key == "activetimestamp":
+                    formatted_dataset += f"activetimestamp {value} "
+                elif key == "channel":
+                    formatted_dataset += f"channel {value} "
+                elif key == "channelmask":
+                    formatted_dataset += f"channelmask {value} "
+                elif key == "extpanid":
+                    formatted_dataset += f"extpanid {value} "
+                elif key == "meshlocalprefix":
+                    # Remove the /64 suffix if present
+                    value = value.replace("/64", "").strip()
+                    formatted_dataset += f"meshlocalprefix {value} "
+                elif key == "networkkey":
+                    formatted_dataset += f"networkkey {value} "
+                elif key == "networkname":
+                    formatted_dataset += f"networkname {value} "
+                elif key == "panid":
+                    formatted_dataset += f"panid {value} "
+                elif key == "pskc":
+                    formatted_dataset += f"pskc {value} "
+                elif key == "securitypolicy":
+                    formatted_dataset += f"securitypolicy {value} "
+        
+        formatted_dataset = formatted_dataset.strip()
+        
+        print("\n=== CLI Console Instructions ===")
         print("After the console opens, please run these commands to join the Thread network:")
-        print("1. dataset set active <paste the dataset here>")
-        print("2. ifconfig up")
-        print("3. thread start")
-        print("\nPress Ctrl+] to exit the console when done")
+        print("\n1. First, use this command to set the dataset (copy the entire line):")
+        print(f"   dataset set active {formatted_dataset}")
+        print("\n2. Then run these commands:")
+        print("   ifconfig up")
+        print("   thread start")
+        print("\nYou should see messages indicating the device is joining the Thread network.")
+        print("Press Ctrl+] to exit the console when done")
 
         input("\nPress Enter to open the CLI console...")
 
@@ -398,7 +506,17 @@ class ESPThreadSetup:
 
         response = input("\nDid the CLI successfully join the Thread network? (y/n): ")
         if response.lower() != 'y':
-            print("Please try to reconfigure the CLI device.")
+            print("\nTroubleshooting tips:")
+            print("1. Make sure both devices are powered on and properly connected")
+            print("2. Try resetting both devices and running the commands again")
+            print("3. Try the alternative method of setting the dataset:")
+            print("   a. Type: dataset set active -")
+            print("   b. Then paste each parameter on a new line")
+            print("   c. End with a blank line (press Enter twice)")
+            print("4. Check that the Border Router is functioning properly")
+            retry = input("\nWould you like to try configuring the CLI again? (y/n): ")
+            if retry.lower() == 'y':
+                return self.configure_cli()
             return False
 
         print("✓ OpenThread CLI configured successfully")
@@ -459,7 +577,9 @@ class ESPThreadSetup:
         print("To access the web interface:")
 
         # Get the IP address of the Border Router
-        ip_address = input("Please enter the IP address of your Border Router (check your router's DHCP list): ")
+        print("\nIMPORTANT: The Border Router should be connected to your WiFi network.")
+        print("Check your router's DHCP client list to find the IP address of the Border Router.")
+        ip_address = input("Please enter the IP address of your Border Router: ")
 
         print(f"\nYou can access the Web GUI at http://{ip_address}")
         print("Use the web interface to:")
@@ -479,8 +599,8 @@ class ESPThreadSetup:
         print("2. Build RCP firmware (required before building Border Router)")
         print("3. Setup Border Router (ESP32S3 with RCP)")
         print("4. Setup CLI (ESP32C6)")
-        print("5. Create Thread network dataset")
-        print("6. Configure CLI to join Thread network")
+        print("5. Create Thread network dataset (requires BOTH devices connected)")
+        print("6. Configure CLI to join Thread network (requires BOTH devices connected)")
         print("7. Setup Web GUI")
         print("8. Run all steps (1-7)")
         print("9. Exit")
@@ -517,6 +637,11 @@ class ESPThreadSetup:
     #-----------------------------------------------------------------------------------
     def run_all_steps(self):
         """Run all setup steps sequentially"""
+        print("\n=== Running Complete Setup Process ===")
+        print("This will guide you through the entire setup process step by step.")
+        print("You'll need both your ESP Thread Border Router and ESP32C6 CLI devices.")
+        print("At different stages, you'll be prompted to connect one or both devices.")
+        
         if not self.download_repositories():
             return False
 
@@ -528,6 +653,11 @@ class ESPThreadSetup:
 
         if not self.build_and_flash_cli():
             return False
+
+        print("\n=== Preparing for Network Configuration ===")
+        print("For the next steps, you'll need BOTH devices connected to your computer simultaneously.")
+        print("This is necessary to create the Thread network and configure the devices to communicate.")
+        input("Press Enter when you're ready to continue...")
 
         if not self.create_dataset():
             return False
@@ -542,6 +672,10 @@ class ESPThreadSetup:
         print("Border Router (ESP32S3 with RCP) on", self.border_router_port)
         print("CLI (ESP32C6) on", self.cli_port)
         print("Thread Network Dataset has been saved to thread_dataset.txt")
+        print("\nYou now have a working Thread network with:")
+        print("1. A Border Router that connects your Thread network to your WiFi network")
+        print("2. A CLI device that can communicate over the Thread network")
+        print("\nYou can use this setup as a self-made Thread dongle for your projects.")
 
         return True
     #-----------------------------------------------------------------------------------
@@ -575,7 +709,17 @@ class ESPThreadSetup:
         print("=== ESP Thread Border Router Setup Script ===")
         print("This script will guide you through setting up your OpenThread Border Router system.")
         print("Following the official Espressif tutorial: https://docs.espressif.com/projects/esp-thread-br/en/latest/dev-guide/build_and_run.html")
-        print("Using the example locations from the tutorial:")
+        
+        print("\n=== Hardware Requirements ===")
+        print("You will need:")
+        print("1. ESP Thread Border Router and Zigbee Gateway v1.2  (or compatible ESP32S3 device)")
+        print("2. ESP32C6 device for the CLI")
+        print("3. USB cables to connect both devices to your computer")
+        
+        print("\nIMPORTANT: For some steps, you'll need to connect BOTH devices to your computer simultaneously.")
+        print("This is necessary for creating the Thread network and configuring the devices to communicate.")
+        
+        print("\n=== Software Components ===")
         print("- Border Router: esp-thread-br/examples/basic_thread_border_router")
         print("- RCP: $IDF_PATH/examples/openthread/ot_rcp")
         print("- CLI: $IDF_PATH/examples/openthread/ot_cli")
