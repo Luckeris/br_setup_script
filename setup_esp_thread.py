@@ -141,7 +141,7 @@ class ESPThreadSetup:
         clean_cmd = ["idf.py", "fullclean"]
         subprocess.run(clean_cmd, check=False)
 
-        # Determine the target for RCP (you might need to adjust this logic)
+        # Determine the target for RCP
         rcp_target = input("Enter the target chip for the RCP firmware (e.g., esp32c6, esp32s3): ").lower()
         if rcp_target not in ["esp32c6", "esp32s3"]:
             print("Warning: Invalid RCP target specified. Using esp32c6 as default.")
@@ -153,13 +153,21 @@ class ESPThreadSetup:
 
         try:
             subprocess.run(build_cmd, check=True)
+            print("✓ RCP firmware built successfully")
+            return True
         except subprocess.CalledProcessError as e:
             print(f"ERROR: Failed to build RCP firmware: {e}")
             self._show_build_logs(rcp_example_dir + "/build")
-            return False  # Stop if RCP build fails
-
-        print("✓ RCP firmware built successfully")
-        return True
+            
+            print("\nBuild failed. Please check the error messages above.")
+            print("You may need to follow the official ESP Thread Border Router setup manual:")
+            print("https://docs.espressif.com/projects/esp-thread-br/en/latest/dev-guide/build_and_run.html")
+            
+            retry = input("\nWould you like to continue with the setup anyway? (y/n): ")
+            if retry.lower() == 'y':
+                print("Continuing with setup. You may need to build the RCP firmware manually later.")
+                return True
+            return False
     #-----------------------------------------------------------------------------------
     
     #-----------------------------------------------------------------------------------
@@ -781,39 +789,6 @@ class ESPThreadSetup:
         print("\nYou can use this setup as a self-made Thread dongle for your projects.")
 
         return True
-    #-----------------------------------------------------------------------------------
-    
-    #-----------------------------------------------------------------------------------
-    def create_fallback_rcp_files(self):
-        """Create fallback RCP files if they don't exist"""
-        print("\n=== Creating Fallback RCP Files ===")
-        print("This is a fallback mechanism to ensure RCP files are available.")
-        print("It's recommended to build the RCP firmware properly, but this will help in case of issues.")
-
-        rcp_example_dir = os.path.join(self.esp_idf_path, "examples/openthread/ot_rcp")
-        if not os.path.exists(rcp_example_dir):
-            print(f"ERROR: RCP example directory not found at {rcp_example_dir}")
-            return False
-
-        # Create a dummy build directory if it doesn't exist
-        build_dir = os.path.join(rcp_example_dir, "build")
-        os.makedirs(build_dir, exist_ok=True)
-
-        # Create dummy files if they don't exist
-        rcp_bin_path_c6 = os.path.join(build_dir, "ot_rcp-esp32c6.bin")
-        rcp_bin_path_s3 = os.path.join(build_dir, "ot_rcp-esp32s3.bin")
-
-        if not os.path.exists(rcp_bin_path_c6):
-            with open(rcp_bin_path_c6, "w") as f:
-                f.write("This is a fallback RCP file for esp32c6.\nIt's recommended to build the RCP firmware properly.")
-            print(f"Created fallback RCP file: {rcp_bin_path_c6}")
-
-        if not os.path.exists(rcp_bin_path_s3):
-            with open(rcp_bin_path_s3, "w") as f:
-                f.write("This is a fallback RCP file for esp32s3.\nIt's recommended to build the RCP firmware properly.")
-            print(f"Created fallback RCP file: {rcp_bin_path_s3}")
-
-        print("✓ Fallback RCP files created/exist")
     #-----------------------------------------------------------------------------------
 
     #-----------------------------------------------------------------------------------
