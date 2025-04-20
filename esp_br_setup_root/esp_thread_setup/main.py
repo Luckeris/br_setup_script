@@ -5,9 +5,9 @@ Main entry point for the ESP Thread Setup utility.
 import sys
 
 from esp_thread_setup.setup.prerequisites import check_prerequisites
-from esp_thread_setup.repo.download import download_repositories
+from esp_thread_setup.repositories.download import download_repositories
 from esp_thread_setup.firmware.rcp import build_rcp_firmware, create_fallback_rcp_files
-from esp_thread_setup.firmware.border_router import setup_border_router
+from esp_thread_setup.firmware.br import setup_border_router
 from esp_thread_setup.firmware.cli import build_and_flash_cli
 from esp_thread_setup.network.dataset import create_dataset
 from esp_thread_setup.network.cli_config import configure_cli
