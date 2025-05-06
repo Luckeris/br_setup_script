@@ -2,17 +2,24 @@
 """
 Main entry point for the ESP Thread Setup utility.
 """
+import os
 import sys
 
-from esp_thread_setup.setup.prerequisites import check_prerequisites
-from esp_thread_setup.repositories.download import download_repositories
-from esp_thread_setup.firmware.rcp import build_rcp_firmware, create_fallback_rcp_files
-from esp_thread_setup.firmware.br import setup_border_router
-from esp_thread_setup.firmware.cli import build_and_flash_cli
-from esp_thread_setup.network.dataset import create_dataset
-from esp_thread_setup.network.cli_config import configure_cli
-from esp_thread_setup.web.gui import setup_web_gui
-from esp_thread_setup.utils.ports import check_port
+# Add the parent directory to the Python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Import using the full path
+from esp_br_setup_root.esp_thread_setup.setup.prerequisites import check_prerequisites
+from esp_br_setup_root.esp_thread_setup.repositories.download import download_repositories
+from esp_br_setup_root.esp_thread_setup.firmware.rcp import build_rcp_firmware, create_fallback_rcp_files
+from esp_br_setup_root.esp_thread_setup.firmware.br import setup_border_router
+from esp_br_setup_root.esp_thread_setup.firmware.cli import build_and_flash_cli
+from esp_br_setup_root.esp_thread_setup.network.dataset import create_dataset
+from esp_br_setup_root.esp_thread_setup.network.cli_config import configure_cli
+from esp_br_setup_root.esp_thread_setup.web.gui import setup_web_gui
+from esp_br_setup_root.esp_thread_setup.utils.ports import check_port
+
+# Rest of your code...
 
 class ESPThreadSetup:
     def __init__(self):
