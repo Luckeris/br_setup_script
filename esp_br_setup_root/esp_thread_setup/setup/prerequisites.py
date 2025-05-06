@@ -3,9 +3,48 @@
 Check prerequisites for ESP Thread setup.
 """
 
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..", "esp_br_setup_root")))
+
 import os
 import subprocess
-from esp_thread_setup.config.constants import ESP_IDF_PATH, ESP_THREAD_BR_PATH
+from esp_thread_setup.config.constants import ESP_THREAD_BR_PATH
+
+def detect_esp_idf_path():
+    """Attempt to detect the ESP-IDF installation path."""
+    import shutil
+
+    # Check if IDF_PATH is already set
+    if 'IDF_PATH' in os.environ:
+        return os.environ['IDF_PATH']
+
+    # Common installation paths to check
+    common_paths = [
+        os.path.expanduser("~/esp/esp-idf"),
+        "/opt/esp/esp-idf",
+        "/usr/local/esp/esp-idf"
+    ]
+
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
+
+    # Attempt to locate idf.py in PATH
+    idf_py_path = shutil.which("idf.py")
+    if idf_py_path:
+        return os.path.dirname(os.path.dirname(idf_py_path))
+
+    return None
+
+# Update the check_prerequisites function to use detect_esp_idf_path
+ESP_IDF_PATH = detect_esp_idf_path()
+
+if not ESP_IDF_PATH:
+    print("ERROR: Unable to detect ESP-IDF installation.")
+    print("Please install ESP-IDF and set the IDF_PATH environment variable.")
+    exit(1)
 
 def check_prerequisites():
     """Check if ESP-IDF environment is properly set up"""
@@ -43,3 +82,20 @@ def check_prerequisites():
             print("Will download/update repositories...")
 
     return True, skip_repositories
+
+def verify_esp_idf_version():
+    """Verify that the detected ESP-IDF version is compatible."""
+    try:
+        result = subprocess.run(["idf.py", "--version"], capture_output=True, text=True, check=True)
+        version = result.stdout.strip()
+        print(f"Detected ESP-IDF version: {version}")
+
+        # Ensure the version matches the expected format and is compatible
+        if not version.startswith("v5.2.4"):
+            print("WARNING: Detected ESP-IDF version may not be compatible. Expected v5.2.4.")
+    except Exception as e:
+        print(f"ERROR: Unable to verify ESP-IDF version: {e}")
+        exit(1)
+
+# Call the version verification function
+verify_esp_idf_version()

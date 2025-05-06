@@ -4,9 +4,15 @@ Main entry point for the ESP Thread Setup utility.
 """
 import os
 import sys
+import pprint
 
 # Add the parent directory to the Python path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Debugging sys.path
+print("\n=== Debugging sys.path ===")
+pprint.pprint(sys.path)
+print("===========================\n")
 
 # Import using the full path
 from esp_br_setup_root.esp_thread_setup.setup.prerequisites import check_prerequisites

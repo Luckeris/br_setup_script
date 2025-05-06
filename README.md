@@ -1,4 +1,11 @@
-This repository contains a setup script for the ESP Thread Border Router/Zigbee Gateway V1.2 and ESP32C6 CLI, for a homemade thread dongle for homeassistant.
+# BR Setup Script
+
+This repository contains the BR Setup Script for ESP Thread setup. You can clone this repository using the following command:
+
+```
+git clone https://github.com/jakub/br-setup-script.git
+```
+
 It is mainly for study reasons, so nothing granted.
 We are currently trying to improve this script, maybe make it a executable in the close future.
 Keep in mind, we are just people and in addition newbies and students, so if there is something wrong or not working, Let us know!
