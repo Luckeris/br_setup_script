@@ -12,6 +12,8 @@ import os
 import subprocess
 from esp_thread_setup.config.constants import ESP_THREAD_BR_PATH
 
+ESP_IDF_PATH = "/home/jakub/esp-idf"
+
 def detect_esp_idf_path():
     """Attempt to detect the ESP-IDF installation path."""
     import shutil
@@ -22,6 +24,7 @@ def detect_esp_idf_path():
 
     # Common installation paths to check
     common_paths = [
+        os.path.expanduser("~/esp-idf"),  # Direct esp-idf directory
         os.path.expanduser("~/esp/esp-idf"),
         "/opt/esp/esp-idf",
         "/usr/local/esp/esp-idf"
