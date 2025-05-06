@@ -3,13 +3,12 @@
 Build and manage RCP (Radio Co-Processor) firmware.
 """
 import os
-import subprocess
 from esp_thread_setup.config.constants import ESP_IDF_PATH, DEFAULT_RCP_TARGET
-from esp_thread_setup.utils.logs import show_build_logs
+from esp_thread_setup.utils.logs import show_build_logs, print_success, print_error, print_warning, print_info, run_command_with_minimal_output
 
 def build_rcp_firmware():
     """Build the RCP firmware required for the Border Router"""
-    print("\n=== Building RCP Firmware ===")
+    print_info("\n=== Building RCP Firmware ===")
 
     # Navigate to the RCP example directory
     rcp_example_dir = os.path.join(ESP_IDF_PATH, "examples/openthread/ot_rcp")
@@ -20,30 +19,23 @@ def build_rcp_firmware():
     os.chdir(rcp_example_dir)
 
     # Clean previous build
-    print("Cleaning previous RCP build...")
-    clean_cmd = ["idf.py", "fullclean"]
-    subprocess.run(clean_cmd, check=False)
+    print_warning("Cleaning previous RCP build...")
+    run_command_with_minimal_output(["idf.py", "fullclean"], "Cleaning RCP build directory")
 
-    # Determine the target for RCP
-    rcp_target = input(f"Enter the target chip for the RCP firmware (e.g., esp32c6, esp32s3) [default: {DEFAULT_RCP_TARGET}]: ").lower()
-    if not rcp_target:
-        rcp_target = DEFAULT_RCP_TARGET
-    elif rcp_target not in ["esp32c6", "esp32s3"]:
-        print(f"Warning: Invalid RCP target specified. Using {DEFAULT_RCP_TARGET} as default.")
-        rcp_target = DEFAULT_RCP_TARGET
+    # Set the default RCP target to esp32h2
+    rcp_target = "esp32h2"
+    print(f"Using default RCP target: {rcp_target}")
 
     # Build the RCP firmware
     print(f"Building RCP firmware for {rcp_target} (this will take a few minutes)...")
-    build_cmd = ["idf.py", "set-target", rcp_target, "build"]
-
     try:
-        subprocess.run(build_cmd, check=True)
+        run_command_with_minimal_output(["idf.py", "set-target", rcp_target, "build"], "Building RCP firmware")
     except subprocess.CalledProcessError as e:
-        print(f"ERROR: Failed to build RCP firmware: {e}")
+        print_error(f"ERROR: Failed to build RCP firmware: {e}")
         show_build_logs(rcp_example_dir + "/build")
         return False  # Stop if RCP build fails
 
-    print("✓ RCP firmware built successfully")
+    print_success("✓ RCP firmware built successfully")
     return True
 
 def create_fallback_rcp_files():

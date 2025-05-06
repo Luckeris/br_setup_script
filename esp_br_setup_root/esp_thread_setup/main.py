@@ -24,6 +24,7 @@ from esp_br_setup_root.esp_thread_setup.network.dataset import create_dataset
 from esp_br_setup_root.esp_thread_setup.network.cli_config import configure_cli
 from esp_br_setup_root.esp_thread_setup.web.gui import setup_web_gui
 from esp_br_setup_root.esp_thread_setup.utils.ports import check_port
+from esp_br_setup_root.esp_thread_setup.utils.logs import print_error
 
 # Rest of your code...
 
@@ -63,7 +64,7 @@ class ESPThreadSetup:
         elif choice == '6':
             configure_cli(self.cli_port, self.dataset)
         elif choice == '7':
-            setup_web_gui()
+            setup_web_gui(self.border_router_port)
         elif choice == '8':
             self.run_all_steps()
         elif choice == '9':
@@ -122,7 +123,7 @@ class ESPThreadSetup:
             return False
 
         # Setup Web GUI
-        setup_web_gui()
+        setup_web_gui(self.border_router_port)
 
         print("\n=== Setup Complete! ===")
         print("Your OpenThread Border Router system is now set up and running.")
@@ -202,5 +203,5 @@ if __name__ == "__main__":
         print("\nSetup interrupted by user. Exiting...")
         sys.exit(1)
     except Exception as e:
-        print(f"\nError occurred during setup: {e}")
+        print_error(f"Error occurred during setup: {e}")
         sys.exit(1)

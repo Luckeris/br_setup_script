@@ -11,6 +11,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.
 import os
 import subprocess
 from esp_thread_setup.config.constants import ESP_THREAD_BR_PATH
+from esp_thread_setup.utils.logs import print_success, print_error, print_warning, print_info, run_command_with_minimal_output
+
+# Define the global flag for repository checks
+repositories_checked = False
 
 ESP_IDF_PATH = "/home/jakub/esp-idf"
 
@@ -45,30 +49,37 @@ def detect_esp_idf_path():
 ESP_IDF_PATH = detect_esp_idf_path()
 
 if not ESP_IDF_PATH:
-    print("ERROR: Unable to detect ESP-IDF installation.")
+    print_error("ERROR: Unable to detect ESP-IDF installation.")
     print("Please install ESP-IDF and set the IDF_PATH environment variable.")
     exit(1)
 
 def check_prerequisites():
     """Check if ESP-IDF environment is properly set up"""
-    print("Checking prerequisites...")
+    print_info("Checking prerequisites...")
     skip_repositories = False
 
     # Check if ESP-IDF is installed and sourced
     if not os.path.exists(ESP_IDF_PATH):
-        print("ERROR: ESP-IDF not found at:", ESP_IDF_PATH)
+        print_error("ERROR: ESP-IDF not found at:", ESP_IDF_PATH)
         print("Please install ESP-IDF and set IDF_PATH environment variable")
         return False, skip_repositories
 
     # Check if required ESP-IDF tools are available
     try:
-        subprocess.run(["idf.py", "--version"], capture_output=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("ERROR: ESP-IDF tools not found. Have you sourced export.sh?")
+        run_command_with_minimal_output(["idf.py", "--version"], "Verifying ESP-IDF version")
+    except Exception as e:
+        print_error("ESP-IDF tools not found. Have you sourced export.sh?")
         print("Run: . $IDF_PATH/export.sh")
         return False, skip_repositories
 
-    print("✓ ESP-IDF environment is properly set up")
+    print_success("✓ ESP-IDF environment is properly set up")
+
+    # Ensure repositories are checked only once
+    global repositories_checked
+    if repositories_checked:
+        return True, skip_repositories
+
+    repositories_checked = True
 
     # Check if repositories are already installed
     br_exists = os.path.exists(ESP_THREAD_BR_PATH)
@@ -81,6 +92,7 @@ def check_prerequisites():
         if response.lower() == 'y':
             skip_repositories = True
             print("✓ Will use existing repositories")
+            return True, skip_repositories  # Exit early if skipping repositories
         else:
             print("Will download/update repositories...")
 
@@ -95,9 +107,9 @@ def verify_esp_idf_version():
 
         # Ensure the version matches the expected format and is compatible
         if not version.startswith("v5.2.4"):
-            print("WARNING: Detected ESP-IDF version may not be compatible. Expected v5.2.4.")
+            print_warning("WARNING: Detected ESP-IDF version may not be compatible. Expected v5.2.4.")
     except Exception as e:
-        print(f"ERROR: Unable to verify ESP-IDF version: {e}")
+        print_error(f"ERROR: Unable to verify ESP-IDF version: {e}")
         exit(1)
 
 # Call the version verification function
